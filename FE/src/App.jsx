@@ -1,8 +1,9 @@
-import React, { lazy, Suspense, useEffect } from 'react'; // TAMBAHKAN useEffect
+import React, { lazy, Suspense, useEffect } from 'react';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ThemeProvider, useTheme } from './contexts/ThemeContext';
 import Navbar from './components/Navbar';
+import Error404 from './components/Error404';
 import './App.css';
 
 class ErrorBoundary extends React.Component {
@@ -76,7 +77,7 @@ class ErrorBoundary extends React.Component {
   }
 }
 
-// Lazy imports - HAPUS dompetDigital karena sudah dihapus
+// Lazy imports untuk halaman utama
 const TukarSampah = lazy(() => import('./pages/TukarSampah'));
 const RiwayatTukar = lazy(() => import('./pages/RiwayatTukar'));
 const PetaSampah = lazy(() => import('./features/petaSampah'));
@@ -90,10 +91,13 @@ const CarbonCalculator = lazy(() => import('./pages/CarbonCalculator'));
 const Penjemputan = lazy(() => import('./pages/Penjemputan'));
 const BankSampah = lazy(() => import('./pages/BankSampah'));
 const HargaSampah = lazy(() => import('./pages/HargaSampah'));
-
-// HAPUS DompetDigital karena sudah dihapus
 const Pencapaian = lazy(() => import('./features/pencapaian/components'));
 const Pengaturan = lazy(() => import('./features/pengaturan/components'));
+
+// Lazy imports untuk fitur baru (placeholder untuk development)
+const WasteTracking = lazy(() => import('./features/waste-tracking/components/WasteTracking'));
+const SmartPricing = lazy(() => import('./features/pricing/components/SmartPricing'));
+const Gamification = lazy(() => import('./features/gamification/components/Gamification'));
 
 const LoadingFallback = () => (
   <div className="min-h-screen bg-gradient-to-br from-gray-50 via-green-50 to-emerald-50 dark:from-gray-900 dark:via-gray-800 dark:to-emerald-900 flex items-center justify-center">
@@ -105,7 +109,7 @@ const LoadingFallback = () => (
         </div>
       </div>
       <h2 className="text-xl font-semibold text-gray-700 dark:text-gray-300 mb-2">
-        Memuat EcoSync...
+        Memuat EcoRevive...
       </h2>
       <p className="text-sm text-gray-500 dark:text-gray-400">
         Menyiapkan pengalaman terbaik untuk Anda
@@ -123,63 +127,9 @@ const PageLoadingFallback = () => (
   </div>
 );
 
-const Error404 = () => {
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-green-50 to-emerald-50 pt-20">
-      <div className="max-w-4xl mx-auto px-4 py-8">
-        <div className="bg-white/80 backdrop-blur-sm rounded-3xl shadow-xl p-12 text-center border border-white/20">
-          <div className="text-9xl font-black bg-gradient-to-r from-red-500 via-orange-500 to-yellow-500 bg-clip-text text-transparent mb-8">
-            404
-          </div>
-          <h1 className="text-4xl font-bold text-gray-800 mb-6">
-            Halaman Tidak Ditemukan
-          </h1>
-          <p className="text-xl text-gray-600 mb-8 max-w-2xl mx-auto leading-relaxed">
-            Sepertinya halaman yang Anda cari telah tersesat dalam perjalanan daur ulang. 
-            Mari kita bantu mengembalikannya ke siklus yang benar! 🌍
-          </p>
-          
-          <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-12">
-            <button
-              onClick={() => window.history.back()}
-              className="bg-green-600 hover:bg-green-700 text-white px-8 py-4 rounded-2xl font-semibold transition-all duration-300 shadow-lg hover:shadow-xl flex items-center space-x-3"
-            >
-              <span>↩️ Kembali</span>
-            </button>
-            
-            <button
-              onClick={() => window.location.href = '/'}
-              className="border-2 border-green-500 text-green-600 hover:bg-green-500 hover:text-white px-8 py-4 rounded-2xl font-semibold transition-all duration-300 shadow-lg hover:shadow-xl flex items-center space-x-3"
-            >
-              <span>🏠 Beranda</span>
-            </button>
-          </div>
-
-          <div className="bg-green-50 border border-green-200 rounded-2xl p-6">
-            <h3 className="text-lg font-semibold text-green-800 mb-3">
-              💡 Tips Navigasi
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-              <div className="text-green-700">
-                • Gunakan menu navigasi
-              </div>
-              <div className="text-green-700">
-                • Periksa URL yang diketik
-              </div>
-              <div className="text-green-700">
-                • Hubungi support jika perlu
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
-
 function AppContent() {
   const { user, loading } = useAuth();
-  const { theme } = useTheme();
+  const { isDarkMode } = useTheme();
   const location = useLocation();
 
   useEffect(() => {
@@ -195,12 +145,13 @@ function AppContent() {
   }
 
   return (
-    <div className={`min-h-screen bg-gray-100 dark:bg-gray-900 transition-colors duration-300 ${theme}`}>
+    <div className={`min-h-screen bg-gray-100 dark:bg-gray-900 transition-colors duration-300 ${isDarkMode ? 'dark' : ''}`}>
       <Navbar />
       <main className="min-h-[calc(100vh-4rem)]">
         <ErrorBoundary>
           <Suspense fallback={<PageLoadingFallback />}>
             <Routes location={location} key={location.pathname}>
+              {/* Routes Utama */}
               <Route path="/" element={<PetaSampah />} />
               <Route path="/ai-assistant" element={<AIAssistant />} />
               <Route path="/profil" element={
@@ -214,6 +165,7 @@ function AppContent() {
               <Route path="/tukar-sampah" element={<TukarSampah />} />
               <Route path="/bisnis-lingkungan" element={<BisnisLingkungan />} />
               
+              {/* Routes Layanan Sampah */}
               <Route path="/penjemputan" element={
                 user ? <Penjemputan /> : <Navigate to="/auth" replace />
               } />
@@ -224,19 +176,22 @@ function AppContent() {
                 user ? <RiwayatTukar /> : <Navigate to="/auth" replace />
               } />
               
-              {/* HAPUS route /dompet karena sudah dihapus */}
+              {/* Routes Pengguna */}
               <Route path="/pencapaian" element={
                 user ? <Pencapaian /> : <Navigate to="/auth" replace />
               } />
               <Route path="/pengaturan" element={
                 user ? <Pengaturan /> : <Navigate to="/auth" replace />
               } />
-              <Route 
-               path="/profil" 
-           element={
-           user ? <ProfilPengguna /> : <Navigate to="/auth" replace />
-            } 
-           />
+
+              {/* Routes Fitur Canggih */}
+              <Route path="/waste-tracking" element={
+                user ? <WasteTracking /> : <Navigate to="/auth" replace />
+              } />
+              <Route path="/smart-pricing" element={<SmartPricing />} />
+              <Route path="/gamification" element={
+                user ? <Gamification /> : <Navigate to="/auth" replace />
+              } />
 
               <Route path="*" element={<Error404 />} />
             </Routes>

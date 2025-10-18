@@ -67,9 +67,24 @@ export const AuthProvider = ({ children }) => {
         error: null 
       }));
 
+      console.log('🔐 Attempting login for:', email);
+
+      // Test server connection first
+      try {
+        const testResult = await authService.testConnection();
+        console.log('📡 Connection test result:', testResult);
+        
+        if (!testResult.success) {
+          throw new Error(testResult.error || 'Server tidak merespons');
+        }
+      } catch (testError) {
+        console.error('❌ Server test failed:', testError);
+        throw new Error(`Tidak dapat terhubung ke server: ${testError.message}`);
+      }
+
       const result = await authService.login({ email, password });
       
-      if (result.success || result.token) {
+      if (result.success || result.data?.token) {
         const user = authService.getCurrentUser();
         setState(prev => ({
           ...prev,
@@ -107,29 +122,40 @@ export const AuthProvider = ({ children }) => {
         error: null 
       }));
 
-      const result = await authService.register(userData);
-      
-      if (result.success && result.data?.token) {
-        const user = authService.getCurrentUser();
-        setState(prev => ({
-          ...prev,
-          user,
-          isAuthenticated: true,
-          isLoading: false,
-          error: null
-        }));
-        
-        return {
-          success: true,
-          message: 'Registrasi berhasil',
-          data: result.data
-        };
+      console.log('📝 Attempting registration for:', userData.email);
+
+      // Test server connection first
+      const testResult = await authService.testConnection();
+      if (!testResult.success) {
+        throw new Error(testResult.error || 'Server tidak merespons');
       }
 
-      throw new Error(result.error || 'Registrasi gagal');
+      const result = await authService.register(userData);
+      
+      if (result.success || result.message?.includes('berhasil')) {
+        // For registration, try to login automatically
+        try {
+          await login(userData.email, userData.password);
+          return {
+            success: true,
+            message: 'Registrasi berhasil',
+            data: result.data || result
+          };
+        } catch (loginError) {
+          // Registration success but auto-login failed
+          return {
+            success: true,
+            message: 'Registrasi berhasil. Silakan login manual.',
+            data: result.data || result
+          };
+        }
+      }
+
+      throw new Error(result.error || result.message || 'Registrasi gagal');
 
     } catch (error) {
       const errorMessage = error.message || 'Terjadi kesalahan saat registrasi';
+      console.error('Registration error:', errorMessage);
       setState(prev => ({
         ...prev,
         isLoading: false,
@@ -184,6 +210,19 @@ export const AuthProvider = ({ children }) => {
     setState(prev => ({ ...prev, error: null }));
   };
 
+  const testServerConnection = async () => {
+    try {
+      const result = await authService.testConnection();
+      return result;
+    } catch (error) {
+      return {
+        success: false,
+        error: error.message,
+        message: 'Tidak dapat terhubung ke server'
+      };
+    }
+  };
+
   const value = {
     // State
     user: state.user,
@@ -191,18 +230,15 @@ export const AuthProvider = ({ children }) => {
     error: state.error,
     isAuthenticated: state.isAuthenticated,
 
-    // Actions
     login,
     register,
     logout,
     updateUser,
     clearError,
 
-    // Utilities
     hasRole: (role) => state.user?.role === role,
-    
-    // Test method
-    testServerConnection: () => authService.testConnection()
+
+    testServerConnection
   };
 
   return (
@@ -211,5 +247,6 @@ export const AuthProvider = ({ children }) => {
     </AuthContext.Provider>
   );
 };
+
 
 export default AuthContext;

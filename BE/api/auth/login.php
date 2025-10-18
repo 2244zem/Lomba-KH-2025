@@ -1,12 +1,10 @@
 <?php
-// CORS HEADERS - HARUS DI LINE PALING ATAS
-header('Access-Control-Allow-Origin: *');
-header('Access-Control-Allow-Headers: *');
-header('Access-Control-Allow-Methods: *');
+header('Access-Control-Allow-Origin: http://localhost:5173');
+header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With');
+header('Access-Control-Allow-Methods: POST, OPTIONS');
 header('Access-Control-Allow-Credentials: true');
 header('Content-Type: application/json; charset=utf-8');
 
-// Handle preflight OPTIONS request
 if ($_SERVER['REQUEST_METHOD'] == 'OPTIONS') {
     http_response_code(200);
     exit();
@@ -15,11 +13,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'OPTIONS') {
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
 
-// Log request
-file_put_contents('login_debug.log', date('Y-m-d H:i:s') . " - Request: " . $_SERVER['REQUEST_METHOD'] . "\n", FILE_APPEND);
-
 try {
-    // Get JSON input
     $input = json_decode(file_get_contents('php://input'), true);
     
     if ($input === null) {
@@ -28,8 +22,6 @@ try {
 
     $email = $input['email'] ?? '';
     $password = $input['password'] ?? '';
-
-    file_put_contents('login_debug.log', date('Y-m-d H:i:s') . " - Login attempt: " . $email . "\n", FILE_APPEND);
 
     if (empty($email) || empty($password)) {
         http_response_code(400);
@@ -41,16 +33,13 @@ try {
     }
 
     // Database connection
-    $host = 'localhost';
-    $dbname = 'ecoapp';
-    $username = 'root';
-    $password_db = '';
-    
-    $pdo = new PDO("mysql:host=$host;dbname=$dbname;charset=utf8mb4", $username, $password_db);
-    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+    include_once '../config/database.php';
+    $database = new Database();
+    $db = $database->getConnection();
 
-    // Check user
-    $stmt = $pdo->prepare('SELECT id, email, password, name FROM users WHERE email = ? LIMIT 1');
+    // ✅ PERBAIKI QUERY - HANYA AMBIL KOLOM YANG ADA
+    $query = "SELECT id, email, password, full_name as name, role FROM users WHERE email = ? LIMIT 1";
+    $stmt = $db->prepare($query);
     $stmt->execute([$email]);
     $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -64,9 +53,7 @@ try {
     }
 
     // Verify password
-    $passwordValid = password_verify($password, $user['password']) || md5($password) === $user['password'];
-
-    if (!$passwordValid) {
+    if (!password_verify($password, $user['password'])) {
         http_response_code(401);
         echo json_encode([
             'success' => false,
@@ -75,34 +62,38 @@ try {
         exit();
     }
 
-    // Generate token
-    $tokenData = [
+    // Remove password from response
+    unset($user['password']);
+
+    // ✅ TAMBAHKAN DEFAULT VALUE UNTUK KOLOM YANG DIBUTUHKAN FRONTEND
+    $user_response = [
         'id' => $user['id'],
         'email' => $user['email'],
         'name' => $user['name'],
+        'role' => $user['role'],
+        'balance' => 1000, // Default value
+        'points' => 50     // Default value
+    ];
+
+    // Generate token
+    $token_payload = [
+        'user_id' => $user['id'],
+        'email' => $user['email'],
         'iat' => time(),
         'exp' => time() + (24 * 60 * 60)
     ];
     
-    $token = base64_encode(json_encode($tokenData));
+    $token = base64_encode(json_encode($token_payload));
 
     // Success response
     echo json_encode([
         'success' => true,
-        'message' => 'Login successful',
+        'message' => 'Login successful!',
         'data' => [
             'token' => $token,
-            'user' => [
-                'id' => $user['id'],
-                'email' => $user['email'],
-                'name' => $user['name'],
-                'balance' => 1000,
-                'points' => 50
-            ]
+            'user' => $user_response
         ]
     ]);
-
-    file_put_contents('login_debug.log', date('Y-m-d H:i:s') . " - Login success: " . $email . "\n", FILE_APPEND);
 
 } catch (Exception $e) {
     http_response_code(500);
@@ -110,7 +101,5 @@ try {
         'success' => false,
         'error' => 'Server error: ' . $e->getMessage()
     ]);
-    
-    file_put_contents('login_debug.log', date('Y-m-d H:i:s') . " - Error: " . $e->getMessage() . "\n", FILE_APPEND);
 }
 ?>

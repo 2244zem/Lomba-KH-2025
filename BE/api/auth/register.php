@@ -1,80 +1,93 @@
 <?php
-// Handle preflight request
-if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+header('Access-Control-Allow-Origin: http://localhost:5173');
+header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With');
+header('Access-Control-Allow-Methods: POST, OPTIONS');
+header('Access-Control-Allow-Credentials: true');
+header('Content-Type: application/json; charset=utf-8');
+
+if ($_SERVER['REQUEST_METHOD'] == 'OPTIONS') {
     http_response_code(200);
-    // Tambahkan header CORS untuk preflight
-    header("Access-Control-Allow-Origin: http://localhost:5173");
-    header("Access-Control-Allow-Methods: POST, OPTIONS");
-    header("Access-Control-Allow-Headers: Content-Type");
     exit();
 }
 
-// Header CORS untuk response biasa
-header("Access-Control-Allow-Origin: http://localhost:5173");
-header("Content-Type: application/json; charset=UTF-8");
-header("Access-Control-Allow-Methods: POST");
-header("Access-Control-Max-Age: 3600");
-header("Access-Control-Allow-Headers: Content-Type, Access-Control-Allow-Headers, Authorization, X-Requested-With");
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
 
-include_once '../config/database.php';
+try {
+    $input = json_decode(file_get_contents('php://input'), true);
+    
+    if ($input === null) {
+        throw new Exception('Invalid JSON input');
+    }
 
-$data = json_decode(file_get_contents("php://input"));
+    $name = $input['name'] ?? '';
+    $email = $input['email'] ?? '';
+    $password = $input['password'] ?? '';
 
-if (!empty($data->name) && !empty($data->email) && !empty($data->password)) {
+    if (empty($name) || empty($email) || empty($password)) {
+        http_response_code(400);
+        echo json_encode([
+            'success' => false,
+            'error' => 'Name, email, and password are required'
+        ]);
+        exit();
+    }
+
+    if (strlen($password) < 6) {
+        http_response_code(400);
+        echo json_encode([
+            'success' => false,
+            'error' => 'Password must be at least 6 characters'
+        ]);
+        exit();
+    }
+
+    // Database connection
+    include_once '../config/database.php';
     $database = new Database();
     $db = $database->getConnection();
-    
-    // Simpan ke variabel
-    $email = $data->email;
-    
-    // Cek email duplikat
-    $query = "SELECT id FROM users WHERE email = :email";
+
+    // Check if email exists
+    $query = "SELECT id FROM users WHERE email = ?";
     $stmt = $db->prepare($query);
-    $stmt->bindParam(":email", $email);
-    $stmt->execute();
+    $stmt->execute([$email]);
     
     if ($stmt->rowCount() > 0) {
         http_response_code(400);
-        echo json_encode(array("message" => "Email sudah digunakan."));
+        echo json_encode([
+            'success' => false,
+            'error' => 'Email already registered'
+        ]);
         exit();
     }
-    
+
     // Hash password
-    $password_hash = password_hash($data->password, PASSWORD_BCRYPT);
-    
-    // Simpan semua ke variabel
-    $username = $data->name;
-    $full_name = $data->name;
-    $phone = $data->phone ?? '';
-    $address = $data->address ?? '';
-    $role = $data->role ?? 'user';
-    
-    // Insert user baru
-    $query = "INSERT INTO users (username, email, password, full_name, phone, address, role) 
-              VALUES (:username, :email, :password, :full_name, :phone, :address, :role)";
+    $password_hash = password_hash($password, PASSWORD_DEFAULT);
+    $username = strtolower(explode('@', $email)[0]) . '_' . time();
+
+    // Insert user
+    $query = "INSERT INTO users (username, email, password, full_name, balance, points) VALUES (?, ?, ?, ?, 1000, 50)";
     $stmt = $db->prepare($query);
-    
-    $stmt->bindParam(":username", $username);
-    $stmt->bindParam(":email", $email);
-    $stmt->bindParam(":password", $password_hash);
-    $stmt->bindParam(":full_name", $full_name);
-    $stmt->bindParam(":phone", $phone);
-    $stmt->bindParam(":address", $address);
-    $stmt->bindParam(":role", $role);
-    
-    if ($stmt->execute()) {
-        http_response_code(201);
-        echo json_encode(array("message" => "Pendaftaran berhasil!", "status" => "success"));
+    $success = $stmt->execute([$username, $email, $password_hash, $name]);
+
+    if ($success) {
+        echo json_encode([
+            'success' => true,
+            'message' => 'Registration successful! Please login.',
+            'data' => [
+                'email' => $email,
+                'name' => $name
+            ]
+        ]);
     } else {
-        http_response_code(500);
-        echo json_encode(array("message" => "Gagal mendaftar."));
+        throw new Exception('Failed to create user');
     }
-} else {
-    http_response_code(400);
-    echo json_encode(array(
-        "message" => "Data tidak lengkap.",
-        "received_data" => $data,
-        "raw_input" => file_get_contents("php://input")
-    ));
+
+} catch (Exception $e) {
+    http_response_code(500);
+    echo json_encode([
+        'success' => false,
+        'error' => 'Registration failed: ' . $e->getMessage()
+    ]);
 }
 ?>
