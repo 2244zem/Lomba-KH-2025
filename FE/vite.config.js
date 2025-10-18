@@ -13,9 +13,17 @@ export default defineConfig({
     host: 'localhost',
     proxy: {
       '/api': {
-        target: 'http://localhost/ecoapp',
+        target: 'http://localhost',
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api/, '/api')
+        rewrite: (path) => path.replace(/^\/api/, '/ecoapp/api'),
+        configure: (proxy, options) => {
+          proxy.on('proxyReq', (proxyReq, req, res) => {
+            console.log('🔄 Proxying:', req.url, '→', proxyReq.path)
+          })
+          proxy.on('error', (err, req, res) => {
+            console.log('❌ Proxy error:', err)
+          })
+        }
       }
     }
   }

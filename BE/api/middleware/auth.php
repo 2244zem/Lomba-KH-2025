@@ -1,23 +1,23 @@
 <?php
-function authenticateUser($token) {
-    // Untuk demo, kita hanya return true
-    // Di produksi, Anda perlu memvalidasi token dengan database
-    return true;
+/**
+ * Authentication Middleware
+ * Include file ini di routes yang butuh proteksi
+ */
+require_once __DIR__ . '/../config/jwt.php';
+
+function requireAuth() {
+    return authenticateJWT();
 }
 
-function checkAuth() {
+function optionalAuth() {
     $headers = getallheaders();
-    if (!isset($headers['Authorization'])) {
-        http_response_code(401);
-        echo json_encode(array("message" => "Token otentikasi diperlukan."));
-        exit();
+    $authHeader = $headers['Authorization'] ?? $headers['authorization'] ?? '';
+    
+    if (preg_match('/Bearer\s+(.*)$/i', $authHeader, $matches)) {
+        $token = $matches[1];
+        return verifyJWT($token);
     }
     
-    $token = str_replace('Bearer ', '', $headers['Authorization']);
-    if (!authenticateUser($token)) {
-        http_response_code(401);
-        echo json_encode(array("message" => "Token tidak valid."));
-        exit();
-    }
+    return null;
 }
 ?>

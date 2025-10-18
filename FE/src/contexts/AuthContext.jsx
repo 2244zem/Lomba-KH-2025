@@ -1,233 +1,208 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { authApi } from '../services/authApi';
+import authService from '../services/authApi';
 
 const AuthContext = createContext();
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (!context) {
-    throw new Error('useAuth must be used within an AuthProvider');
+    throw new Error('useAuth must be used within AuthProvider');
   }
   return context;
 };
 
 export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [state, setState] = useState({
+    user: null,
+    isLoading: true,
+    error: null,
+    isAuthenticated: false
+  });
 
   useEffect(() => {
-    const initializeAuth = async () => {
-      try {
-        const token = authApi.getToken();
-        const userData = localStorage.getItem('user');
-        
-        if (token && userData) {
-          try {
-            // Verify token with backend
-            const isValid = await authApi.verifyToken(token);
-            if (isValid) {
-              const parsedUser = JSON.parse(userData);
-              // Ensure user has required properties
-              const validatedUser = {
-                ...parsedUser,
-                id: parsedUser.id || parsedUser.user_id || Date.now(),
-                name: parsedUser.name || 'User',
-                email: parsedUser.email || '',
-                balance: parsedUser.balance || 0,
-                points: parsedUser.points || 0
-              };
-              
-              setUser(validatedUser);
-              localStorage.setItem('user', JSON.stringify(validatedUser));
-            } else {
-              // Token invalid, clear storage
-              localStorage.removeItem('user');
-              authApi.removeToken();
-            }
-          } catch (parseError) {
-            console.error('Error parsing user data:', parseError);
-            localStorage.removeItem('user');
-            authApi.removeToken();
-          }
-        }
-      } catch (error) {
-        console.error('Auth initialization error:', error);
-        setError('Failed to initialize authentication');
-      } finally {
-        setLoading(false);
-      }
-    };
-
     initializeAuth();
   }, []);
 
-  const login = async (email, password) => {
+  const initializeAuth = async () => {
     try {
-      setLoading(true);
-      setError(null);
-      
-      const response = await authApi.login({ email, password });
-      
-      if (response.token) {
-        authApi.setToken(response.token);
-        
-        // Ensure user data has all required properties
-        const userWithDefaults = {
-          id: response.user?.id || response.user?.user_id || Date.now(),
-          name: response.user?.name || 'User',
-          email: response.user?.email || email,
-          balance: response.user?.balance || 0,
-          points: response.user?.points || 0,
-          ...response.user
-        };
-        
-        localStorage.setItem('user', JSON.stringify(userWithDefaults));
-        setUser(userWithDefaults);
-        
-        return response;
+      // JANGAN TEST SERVER DI INIT - biarkan user login dulu
+      const user = authService.getCurrentUser();
+      const isAuthenticated = authService.isAuthenticated();
+
+      if (isAuthenticated && user) {
+        setState(prev => ({
+          ...prev,
+          user,
+          isAuthenticated: true,
+          isLoading: false
+        }));
       } else {
-        throw new Error('No token received from server');
+        // Clear invalid auth data
+        if (user && !isAuthenticated) {
+          authService.clearAuth();
+        }
+        setState(prev => ({
+          ...prev,
+          isLoading: false,
+          isAuthenticated: false
+        }));
       }
     } catch (error) {
-      const errorMessage = error.response?.data?.message || error.message || 'Login failed';
-      setError(errorMessage);
-      throw error;
-    } finally {
-      setLoading(false);
+      console.error('Auth initialization error:', error);
+      authService.clearAuth();
+      setState(prev => ({
+        ...prev,
+        isLoading: false,
+        error: 'Gagal memuat data autentikasi',
+        isAuthenticated: false
+      }));
     }
   };
 
-  const register = async (name, email, password) => {
+  const login = async (email, password) => {
     try {
-      setLoading(true);
-      setError(null);
+      setState(prev => ({ 
+        ...prev, 
+        isLoading: true, 
+        error: null 
+      }));
+
+      const result = await authService.login({ email, password });
       
-      const response = await authApi.register({ name, email, password });
-      return response;
+      if (result.success || result.token) {
+        const user = authService.getCurrentUser();
+        setState(prev => ({
+          ...prev,
+          user,
+          isAuthenticated: true,
+          isLoading: false,
+          error: null
+        }));
+        
+        return {
+          success: true,
+          message: 'Login berhasil',
+          data: result.data || result
+        };
+      }
+
+      throw new Error(result.error || 'Login gagal');
+
     } catch (error) {
-      const errorMessage = error.response?.data?.message || error.message || 'Registration failed';
-      setError(errorMessage);
+      const errorMessage = error.message || 'Terjadi kesalahan saat login';
+      setState(prev => ({
+        ...prev,
+        isLoading: false,
+        error: errorMessage
+      }));
       throw error;
-    } finally {
-      setLoading(false);
+    }
+  };
+
+  const register = async (userData) => {
+    try {
+      setState(prev => ({ 
+        ...prev, 
+        isLoading: true, 
+        error: null 
+      }));
+
+      const result = await authService.register(userData);
+      
+      if (result.success && result.data?.token) {
+        const user = authService.getCurrentUser();
+        setState(prev => ({
+          ...prev,
+          user,
+          isAuthenticated: true,
+          isLoading: false,
+          error: null
+        }));
+        
+        return {
+          success: true,
+          message: 'Registrasi berhasil',
+          data: result.data
+        };
+      }
+
+      throw new Error(result.error || 'Registrasi gagal');
+
+    } catch (error) {
+      const errorMessage = error.message || 'Terjadi kesalahan saat registrasi';
+      setState(prev => ({
+        ...prev,
+        isLoading: false,
+        error: errorMessage
+      }));
+      throw error;
     }
   };
 
   const logout = () => {
     try {
-      authApi.removeToken();
-      localStorage.removeItem('user');
-      localStorage.removeItem('wasteTransactionHistory');
-      setUser(null);
-      setError(null);
+      authService.logout();
+      setState({
+        user: null,
+        isLoading: false,
+        error: null,
+        isAuthenticated: false
+      });
     } catch (error) {
       console.error('Logout error:', error);
       // Force clear even if there's an error
       localStorage.clear();
-      setUser(null);
+      setState({
+        user: null,
+        isLoading: false,
+        error: null,
+        isAuthenticated: false
+      });
     }
   };
 
-  const updateUserBalance = async (newBalance) => {
-    if (!user) {
-      throw new Error('User not logged in');
-    }
-
-    if (typeof newBalance !== 'number' || newBalance < 0) {
-      throw new Error('Invalid balance amount');
-    }
-
-    try {
-      // Update balance in backend (you can add API call here if needed)
-      // await axios.put(`${API_BASE_URL}/user/balance`, { balance: newBalance });
+  const updateUser = (updates) => {
+    setState(prev => {
+      if (!prev.user) return prev;
       
-      const updatedUser = {
-        ...user,
-        balance: newBalance
+      const updatedUser = { 
+        ...prev.user, 
+        ...updates 
       };
       
-      setUser(updatedUser);
-      localStorage.setItem('user', JSON.stringify(updatedUser));
+      // Update localStorage
+      localStorage.setItem('eco_user', JSON.stringify(updatedUser));
       
-      return updatedUser;
-    } catch (error) {
-      console.error('Update balance error:', error);
-      throw new Error('Failed to update balance');
-    }
-  };
-
-  const addToBalance = async (amount) => {
-    if (!user) {
-      throw new Error('User not logged in');
-    }
-
-    if (typeof amount !== 'number' || amount <= 0) {
-      throw new Error('Invalid amount');
-    }
-
-    const newBalance = (user.balance || 0) + amount;
-    return await updateUserBalance(newBalance);
-  };
-
-  const deductFromBalance = async (amount) => {
-    if (!user) {
-      throw new Error('User not logged in');
-    }
-
-    if (typeof amount !== 'number' || amount <= 0) {
-      throw new Error('Invalid amount');
-    }
-
-    const currentBalance = user.balance || 0;
-    if (currentBalance < amount) {
-      throw new Error('Insufficient balance');
-    }
-
-    const newBalance = currentBalance - amount;
-    return await updateUserBalance(newBalance);
-  };
-
-  const updateUserProfile = async (userData) => {
-    if (!user) {
-      throw new Error('User not logged in');
-    }
-
-    try {
-      // You can uncomment this if you want to sync with backend
-      // const response = await authApi.updateProfile(userData);
-      
-      const updatedUser = {
-        ...user,
-        ...userData
+      return { 
+        ...prev, 
+        user: updatedUser 
       };
-      
-      setUser(updatedUser);
-      localStorage.setItem('user', JSON.stringify(updatedUser));
-      
-      return updatedUser;
-    } catch (error) {
-      console.error('Update profile error:', error);
-      throw new Error('Failed to update profile');
-    }
+    });
   };
 
   const clearError = () => {
-    setError(null);
+    setState(prev => ({ ...prev, error: null }));
   };
 
   const value = {
-    user,
-    loading,
-    error,
+    // State
+    user: state.user,
+    isLoading: state.isLoading,
+    error: state.error,
+    isAuthenticated: state.isAuthenticated,
+
+    // Actions
     login,
     register,
     logout,
-    updateUserBalance,
-    addToBalance,
-    deductFromBalance,
-    updateUserProfile,
-    clearError
+    updateUser,
+    clearError,
+
+    // Utilities
+    hasRole: (role) => state.user?.role === role,
+    
+    // Test method
+    testServerConnection: () => authService.testConnection()
   };
 
   return (
