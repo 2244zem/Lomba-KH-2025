@@ -31,20 +31,6 @@ EcoRevive adalah **platform bisnis digital revolusioner** yang mengintegrasikan 
 
 ## 🎨 Demo & Tampilan
 
-<div align="center">
-
-| 🏠 Halaman Utama | 📱 Marketplace | 🤖 AI Assistant |
-|:---:|:---:|:---:|
-| ![Home](https://via.placeholder.com/300x200/00a859/ffffff?text=Peta+Bank+Sampah) | ![Marketplace](https://via.placeholder.com/300x200/ff6b35/ffffff?text=Marketplace) | ![AI](https://via.placeholder.com/300x200/2e86ab/ffffff?text=AI+Assistant) |
-
-| 🔄 Tukar Sampah | 📊 Dashboard | 🌱 Edukasi |
-|:---:|:---:|:---:|
-| ![Tukar](https://via.placeholder.com/300x200/00a859/ffffff?text=Tukar+Sampah) | ![Dashboard](https://via.placeholder.com/300x200/ff6b35/ffffff?text=Dashboard) | ![Edukasi](https://via.placeholder.com/300x200/2e86ab/ffffff?text=Edukasi) |
-
-</div>
-
-## 🛠️ Teknologi yang Digunakan
-
 ### 🎯 Frontend (Modern & Responsive)
 - ⚛️ **React.js 18** - User interface yang interaktif
 - 🚀 **Vite** - Fast development & building
@@ -72,11 +58,6 @@ Pastikan sistem Anda memenuhi requirements berikut:
 - **XAMPP** (PHP 7.4+ & MySQL) ⬇️ [Download](https://www.apachefriends.org/)
 - **Git** ⬇️ [Download](https://git-scm.com/)
 - **Browser Modern** (Chrome, Firefox, Edge)
-
-### 💻 Spesifikasi Minimum
-- RAM: 4GB
-- Storage: 2GB free space
-- OS: Windows 10, macOS, atau Linux
 
 ## 🚀 Instalasi & Setup
 
